@@ -3,7 +3,7 @@ import { playerStatsService } from './playerStatsService'
 
 export interface Detection {
   id: string
-  class: 'player' | 'ball' | 'referee' | 'unknown'
+  class: 'player' | 'ball' | 'referee'
   confidence: number
   bbox: { x: number; y: number; width: number; height: number }
   team?: 'home' | 'away'
@@ -253,16 +253,16 @@ export class AnalysisService {
     const heightScale = this.videoElement ? this.videoElement.videoHeight / frameHeight : 1
 
     return apiDetections
-      .map((det, index) => {
+      .map((det, index): Detection | null => {
+        const mappedClass = this.mapClass(det.class_name)
+        if (mappedClass === 'unknown') {
+          return null
+        }
+
         const [x1, y1, x2, y2] = det.bbox
         const centerX = ((x1 + x2) / 2) / frameWidth
         const team = centerX < 0.45 ? 'home' : centerX > 0.55 ? 'away' : 'home'
         const trackId = det.track_id ?? (index + 1)
-        const mappedClass = this.mapClass(det.class_name)
-
-        if (mappedClass === 'unknown') {
-          return null
-        }
 
         return {
           id: `track-${trackId}`,
