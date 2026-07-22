@@ -23,19 +23,32 @@ class YOLODetector:
             imgsz=Config.YOLO_IMAGE_SIZE,
             verbose=False
         )
-        
+
         detections = []
         for result in results:
             for box in result.boxes:
+                class_name = self.model.names[int(box.cls[0])]
+                class_name_lower = class_name.lower()
+
+                if class_name_lower not in Config.TARGET_CLASS_NAMES:
+                    continue
+
+                confidence = float(box.conf[0].cpu().numpy())
+                min_conf = Config.BALL_CONFIDENCE if 'ball' in class_name_lower else (
+                    Config.REFEREE_CONFIDENCE if class_name_lower == 'referee' else Config.PERSON_CONFIDENCE
+                )
+                if confidence < min_conf:
+                    continue
+
                 bbox = box.xyxy[0].cpu().numpy()
                 detection = {
                     'bbox': bbox.tolist(),
-                    'confidence': float(box.conf[0].cpu().numpy()),
+                    'confidence': confidence,
                     'class': int(box.cls[0].cpu().numpy()),
-                    'class_name': self.model.names[int(box.cls[0])]
+                    'class_name': class_name
                 }
                 detections.append(detection)
-                
+
         return detections
     
     def detect_with_classes(self, frame: np.ndarray, target_classes: list = None) -> list:

@@ -71,13 +71,20 @@ export class WebSocketAnalyzer {
   private reconnectDelay = 1000;
   private lastFrameShape: number[] | null = null;
   
-  connect(onFrame: (data: AnalysisResult) => void, onError?: (error: any) => void) {
+  connect(
+    onFrame: (data: AnalysisResult) => void,
+    onError?: (error: any) => void,
+    onOpen?: () => void
+  ) {
     try {
       this.ws = new WebSocket(`${WS_BASE}/ws/analyze`);
-      
+
       this.ws.onopen = () => {
         console.log('WebSocket connected');
         this.reconnectAttempts = 0;
+        if (onOpen) {
+          onOpen();
+        }
       };
       
       this.ws.onmessage = (event) => {
@@ -107,7 +114,7 @@ export class WebSocketAnalyzer {
       
       this.ws.onclose = () => {
         console.log('WebSocket closed');
-        this.attemptReconnect(onFrame, onError);
+        this.attemptReconnect(onFrame, onError, onOpen);
       };
       
     } catch (error) {
@@ -118,14 +125,20 @@ export class WebSocketAnalyzer {
     }
   }
   
-  private attemptReconnect(onFrame: (data: AnalysisResult) => void, onError?: (error: any) => void) {
+  private attemptReconnect(
+    onFrame: (data: AnalysisResult) => void,
+    onError?: (error: any) => void,
+    onOpen?: () => void
+  ) {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
       console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
-      
+
       setTimeout(() => {
-        this.connect(onFrame, onError);
+        this.connect(onFrame, onError, onOpen);
       }, this.reconnectDelay * this.reconnectAttempts);
+    } else if (onError) {
+      onError(new Error('Max WebSocket reconnect attempts reached'));
     }
   }
   

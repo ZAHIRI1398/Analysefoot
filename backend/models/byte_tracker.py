@@ -55,7 +55,7 @@ class ByteTracker:
         
         for det in detections:
             best_match = None
-            best_iou = 0.5  # Seuil IoU minimum
+            best_iou = 0.3  # Seuil IoU minimum
             
             for track_id, track in self.tracks.items():
                 if track_id in used_track_ids:

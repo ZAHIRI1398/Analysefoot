@@ -1,5 +1,7 @@
+import asyncio
 from fastapi import FastAPI, UploadFile, File, WebSocket, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.websockets import WebSocketDisconnect
 import cv2
 import numpy as np
 import json
@@ -144,37 +146,37 @@ async def websocket_analyze(websocket: WebSocket):
     WebSocket pour analyse temps réel de flux vidéo
     """
     await websocket.accept()
-    
+
     try:
-        detector, tracker = get_models()
-        
+        detector, tracker = await asyncio.to_thread(get_models)
+
         while True:
             # Receive frame data
             data = await websocket.receive_text()
             frame_data = json.loads(data)
-            
+
             # Decode base64 image
             image_data = frame_data.get('image')
             if not image_data:
                 await websocket.send_json({"error": "No image data"})
                 continue
-            
+
             # Remove data URL prefix if present
             if ',' in image_data:
                 image_data = image_data.split(',')[1]
-            
+
             image_bytes = base64.b64decode(image_data)
             nparr = np.frombuffer(image_bytes, np.uint8)
             frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            
+
             if frame is None:
                 await websocket.send_json({"error": "Invalid image format"})
                 continue
-            
-            # Analyze frame
-            detections = detector.detect(frame)
-            tracks = tracker.update(detections, frame.shape)
-            
+
+            # Analyze frame without blocking the event loop
+            detections = await asyncio.to_thread(detector.detect, frame)
+            tracks = await asyncio.to_thread(tracker.update, detections, frame.shape)
+
             # Send results
             result = {
                 "success": True,
@@ -184,10 +186,15 @@ async def websocket_analyze(websocket: WebSocket):
                 "timestamp": frame_data.get('timestamp', 0)
             }
             await websocket.send_json(result)
-            
+
+    except WebSocketDisconnect:
+        print("WebSocket client disconnected")
     except Exception as e:
         print(f"WebSocket error: {e}")
-        await websocket.close()
+        try:
+            await websocket.close(code=1011)
+        except Exception:
+            pass
 
 @app.post("/reset-tracker")
 async def reset_tracker():
@@ -202,4 +209,10 @@ if __name__ == "__main__":
     import uvicorn
     print("Starting Football AI Analysis API...")
     print(f"Device: {Config.DEVICE}")
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8001,
+        ws_ping_interval=None,
+        ws_ping_timeout=None,
+    )

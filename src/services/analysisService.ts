@@ -3,7 +3,7 @@ import { playerStatsService } from './playerStatsService'
 
 export interface Detection {
   id: string
-  class: 'player' | 'ball' | 'referee'
+  class: 'player' | 'ball' | 'referee' | 'unknown'
   confidence: number
   bbox: { x: number; y: number; width: number; height: number }
   team?: 'home' | 'away'
@@ -27,6 +27,7 @@ export class AnalysisService {
   private wsAnalyzer: WebSocketAnalyzer | null = null
   private canvas: HTMLCanvasElement | null = null
   private activeLoopId = 0
+  private lastAPILoopId = 0
   private readonly maxCaptureWidth = 640
   private readonly maxCaptureHeight = 360
 
@@ -78,6 +79,11 @@ export class AnalysisService {
     this.wsAnalyzer = new WebSocketAnalyzer()
     this.wsAnalyzer.connect(
       (data) => {
+        // Ignore responses from a previous loop after a reconnect
+        if (this.activeLoopId !== this.lastAPILoopId) {
+          return
+        }
+
         const detections = this.convertAPIDetections(data.detections, data.frame_shape)
         const radarPositions = this.convertDetectionsToRadarPositions(detections)
 
@@ -93,6 +99,11 @@ export class AnalysisService {
           this.onFrameCallback(frame)
         }
         this.frameCount++
+
+        // Schedule next frame only after receiving the response to avoid latency buildup
+        if (this.isAnalyzing) {
+          this.scheduleNextAPIFrame(this.activeLoopId)
+        }
       },
       (error) => {
         console.error('WebSocket error:', error)
@@ -100,10 +111,15 @@ export class AnalysisService {
         this.useRealAPI = false
         this.activeLoopId++
         this.processFrame()
+      },
+      () => {
+        // Start or resume the API loop on every successful connection
+        if (this.isAnalyzing) {
+          this.activeLoopId++
+          this.processFrameWithAPI()
+        }
       }
     )
-    
-    this.processFrameWithAPI()
   }
 
   private async processFrameWithAPI() {
@@ -128,19 +144,14 @@ export class AnalysisService {
     if (!ctx) return
     
     ctx.drawImage(this.videoElement, 0, 0, captureWidth, captureHeight)
-    const imageData = this.canvas.toDataURL('image/jpeg', 0.65)
+    const imageData = this.canvas.toDataURL('image/jpeg', 0.85)
     
     // Send to API via WebSocket
+    this.lastAPILoopId = loopId
     if (this.wsAnalyzer && this.wsAnalyzer.isConnected()) {
       this.wsAnalyzer.sendFrame(imageData, this.videoElement.currentTime, captureWidth, captureHeight)
+      // Next frame is scheduled by the response callback to avoid queue buildup
     }
-    
-    // Continue processing only if the loop is still active
-    this.frameTimeout = window.setTimeout(() => {
-      if (this.isAnalyzing && loopId === this.activeLoopId) {
-        this.animationFrame = window.requestAnimationFrame(() => this.processFrameWithAPI())
-      }
-    }, 1000 / 15)
   }
 
   private processFrame() {
@@ -228,34 +239,49 @@ export class AnalysisService {
     return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2))
   }
 
+  private scheduleNextAPIFrame(loopId: number) {
+    this.frameTimeout = window.setTimeout(() => {
+      if (this.isAnalyzing && loopId === this.activeLoopId) {
+        this.animationFrame = window.requestAnimationFrame(() => this.processFrameWithAPI())
+      }
+    }, 1000 / 15)
+  }
+
   private convertAPIDetections(apiDetections: any[], frameShape?: number[]): Detection[] {
     const [frameHeight = 1, frameWidth = 1] = frameShape ?? []
     const widthScale = this.videoElement ? this.videoElement.videoWidth / frameWidth : 1
     const heightScale = this.videoElement ? this.videoElement.videoHeight / frameHeight : 1
 
-    return apiDetections.map((det, index) => {
-      const [x1, y1, x2, y2] = det.bbox
-      const centerX = ((x1 + x2) / 2) / frameWidth
-      const team = centerX < 0.45 ? 'home' : centerX > 0.55 ? 'away' : 'home'
-      const trackId = det.track_id ?? (index + 1)
+    return apiDetections
+      .map((det, index) => {
+        const [x1, y1, x2, y2] = det.bbox
+        const centerX = ((x1 + x2) / 2) / frameWidth
+        const team = centerX < 0.45 ? 'home' : centerX > 0.55 ? 'away' : 'home'
+        const trackId = det.track_id ?? (index + 1)
+        const mappedClass = this.mapClass(det.class_name)
 
-      return {
-        id: `track-${trackId}`,
-        class: this.mapClass(det.class_name),
-        confidence: det.confidence,
-        bbox: {
-          x: x1 * widthScale,
-          y: y1 * heightScale,
-          width: (x2 - x1) * widthScale,
-          height: (y2 - y1) * heightScale,
-        },
-        team,
-        trackId,
-      }
-    })
+        if (mappedClass === 'unknown') {
+          return null
+        }
+
+        return {
+          id: `track-${trackId}`,
+          class: mappedClass,
+          confidence: det.confidence,
+          bbox: {
+            x: x1 * widthScale,
+            y: y1 * heightScale,
+            width: (x2 - x1) * widthScale,
+            height: (y2 - y1) * heightScale,
+          },
+          team,
+          trackId,
+        }
+      })
+      .filter((det): det is Detection => det !== null)
   }
 
-  private mapClass(className: string): 'player' | 'ball' | 'referee' {
+  private mapClass(className: string): 'player' | 'ball' | 'referee' | 'unknown' {
     const classMap: { [key: string]: 'player' | 'ball' | 'referee' } = {
       'player': 'player',
       'ball': 'ball',
@@ -263,7 +289,7 @@ export class AnalysisService {
       'person': 'player',
       'sports ball': 'ball',
     }
-    return classMap[className.toLowerCase()] || 'player'
+    return classMap[className.toLowerCase()] || 'unknown'
   }
 
   private simulateDetections(): Detection[] {
