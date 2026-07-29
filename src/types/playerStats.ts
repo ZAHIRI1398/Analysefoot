@@ -23,7 +23,7 @@ export interface PlayerStats {
   timeInAttackingThird: number // en secondes
   
   // Internal
-  frameCount?: number
+  frameCount: number
 
   // Performance
   passAccuracy?: number // pourcentage
