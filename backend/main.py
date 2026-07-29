@@ -231,11 +231,13 @@ async def websocket_analyze(websocket: WebSocket):
 @app.post("/reset-tracker")
 async def reset_tracker():
     """
-    Réinitialise le tracker (utile entre deux vidéos)
+    Réinitialise le tracker et les caches d'assignation (utile entre deux vidéos)
     """
-    global byte_tracker
+    global byte_tracker, team_assigner, ball_assigner
     byte_tracker = None
-    return {"success": True, "message": "Tracker reset"}
+    team_assigner = None
+    ball_assigner = None
+    return {"success": True, "message": "Tracker and caches reset"}
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,3 +1,4 @@
+import math
 import numpy as np
 from config import Config
 
@@ -48,24 +49,40 @@ class ByteTracker:
     
     def _associate_detections(self, detections: list, frame_shape: tuple) -> list:
         """
-        Associe les détections aux tracks existants
+        Associe les détections aux tracks existants.
+        Utilise l'IoU d'abord, puis la distance au centre si l'IoU est trop faible
+        (utile quand le backend traite une image sur deux ou plus).
         """
+        frame_h, frame_w = frame_shape[:2]
+        max_center_dist = max(frame_w, frame_h) * 0.15  # ~15% du plus grand côté
+
         tracked = []
         used_track_ids = set()
-        
+
         for det in detections:
             best_match = None
             best_iou = 0.3  # Seuil IoU minimum
-            
+            best_dist = float('inf')
+
+            det_center = self._get_center(det['bbox'])
+
             for track_id, track in self.tracks.items():
                 if track_id in used_track_ids:
                     continue
-                    
+
                 iou = self._calculate_iou(det['bbox'], track['bbox'])
                 if iou > best_iou:
                     best_iou = iou
                     best_match = track_id
-            
+                    continue
+
+                # Fallback par distance au centre
+                track_center = self._get_center(track['bbox'])
+                dist = math.hypot(det_center[0] - track_center[0], det_center[1] - track_center[1])
+                if dist < max_center_dist and dist < best_dist:
+                    best_dist = dist
+                    best_match = track_id
+
             if best_match:
                 # Mettre à jour le track existant
                 det['track_id'] = best_match
@@ -76,11 +93,16 @@ class ByteTracker:
                     'age': self.tracks[best_match]['age'] + 1
                 })
                 used_track_ids.add(best_match)
-            
+
             tracked.append(det)
-        
+
         return tracked
     
+    def _get_center(self, bbox: list) -> tuple:
+        """Centre d'une bounding box [x1, y1, x2, y2]."""
+        x1, y1, x2, y2 = bbox
+        return ((x1 + x2) / 2, (y1 + y2) / 2)
+
     def _calculate_iou(self, bbox1: list, bbox2: list) -> float:
         """
         Calcule l'IoU entre deux bounding boxes

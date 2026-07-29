@@ -1,4 +1,4 @@
-import { analyzeBase64, WebSocketAnalyzer } from './apiService'
+import { analyzeBase64, resetTracker, WebSocketAnalyzer } from './apiService'
 import { playerStatsService } from './playerStatsService'
 
 export interface Detection {
@@ -76,7 +76,14 @@ export class AnalysisService {
     this.videoElement = null
   }
 
-  private startRealAnalysis() {
+  private async startRealAnalysis() {
+    // Reset backend state so track IDs stay low and caches are fresh
+    try {
+      await resetTracker()
+    } catch (e) {
+      console.warn('[AnalysisService] resetTracker failed', e)
+    }
+
     // Create canvas for frame extraction
     this.canvas = document.createElement('canvas')
     
@@ -92,7 +99,7 @@ export class AnalysisService {
         const detections = this.convertAPIDetections(data.detections, data.frame_shape)
         const radarPositions = this.convertDetectionsToRadarPositions(detections)
 
-        this.updatePlayerStats(detections, radarPositions, data.possession)
+        this.updatePlayerStats(detections, radarPositions, data.possession, data.timestamp * 1000)
 
         const frame: AnalysisFrame = {
           timestamp: data.timestamp,
@@ -107,9 +114,10 @@ export class AnalysisService {
         }
         this.frameCount++
 
-        // Adapt the next jump to the backend latency so the video keeps up
+        // Adapt the next jump to the backend latency, but cap it to keep
+        // tracking stable and give meaningful speed/possession stats.
         const elapsed = (performance.now() - this.frameSendTime) / 1000
-        this.frameDelta = Math.min(Math.max(elapsed, 0.05), 2.0)
+        this.frameDelta = Math.min(Math.max(elapsed, 0.05), 1.0)
         console.log('[AnalysisService] next frameDelta', this.frameDelta)
 
         // Schedule next frame only after receiving the response to avoid latency buildup
@@ -215,8 +223,8 @@ export class AnalysisService {
     const detections = this.simulateDetections()
     const radarPositions = this.simulateRadarPositions()
 
-    // Update player statistics
-    this.updatePlayerStats(detections, radarPositions)
+    // Update player statistics using video time
+    this.updatePlayerStats(detections, radarPositions, undefined, (this.videoElement?.currentTime || 0) * 1000)
 
     const frame: AnalysisFrame = {
       timestamp: this.videoElement.currentTime,
@@ -238,9 +246,11 @@ export class AnalysisService {
   private updatePlayerStats(
     detections: Detection[],
     radarPositions: Array<{ x: number; y: number; team: 'home' | 'away'; id: number }>,
-    possession?: { home: number; away: number; neutral: number }
+    possession?: { home: number; away: number; neutral: number },
+    videoTimestamp?: number
   ) {
-    const timestamp = Date.now()
+    // Use video timestamp (ms) so speed/time stats match the actual frame spacing
+    const timestamp = videoTimestamp ?? Date.now()
 
     radarPositions.forEach(pos => {
       // Initialize player if not exists

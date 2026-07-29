@@ -85,8 +85,8 @@ export class PlayerStatsService {
         stats.averageSpeed = (stats.averageSpeed * (stats.frameCount || 0) + speed) / ((stats.frameCount || 0) + 1)
         stats.maxSpeed = Math.max(stats.maxSpeed, speed)
 
-        // Compter les sprints (vitesse > 25 km/h)
-        if (speed > 25) {
+        // Compter les sprints (vitesse > 20 km/h)
+        if (speed > 20) {
           stats.sprintCount++
         }
 
