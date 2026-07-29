@@ -6,10 +6,18 @@ from config import Config
 
 class YOLODetector:
     def __init__(self):
-        print(f"Initializing YOLOv8 on {Config.DEVICE}...")
-        self.model = YOLO(Config.YOLO_MODEL_PATH)
-        self.model.to(Config.DEVICE)
-        print("YOLOv8 loaded successfully")
+        print(f"Initializing YOLO on {Config.DEVICE}...")
+        try:
+            self.model = YOLO(Config.YOLO_MODEL_PATH)
+            self.model.to(Config.DEVICE)
+            print(f"YOLO loaded successfully from {Config.YOLO_MODEL_PATH}")
+        except Exception as e:
+            print(f"[WARNING] Could not load {Config.YOLO_MODEL_PATH}: {e}")
+            fallback = 'yolov8x.pt' if Config.DEVICE == 'cuda' else 'yolov8n.pt'
+            print(f"Falling back to {fallback}")
+            self.model = YOLO(fallback)
+            self.model.to(Config.DEVICE)
+            print("YOLO fallback loaded successfully")
         
     def detect(self, frame: np.ndarray) -> list:
         """

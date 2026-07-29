@@ -70,17 +70,19 @@ export class WebSocketAnalyzer {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
   private lastFrameShape: number[] | null = null;
+  private manuallyClosed = false;
   
   connect(
     onFrame: (data: AnalysisResult) => void,
     onError?: (error: any) => void,
     onOpen?: () => void
   ) {
+    this.manuallyClosed = false;
     try {
       this.ws = new WebSocket(`${WS_BASE}/ws/analyze`);
 
       this.ws.onopen = () => {
-        console.log('WebSocket connected');
+        console.log('[WS] connected');
         this.reconnectAttempts = 0;
         if (onOpen) {
           onOpen();
@@ -90,6 +92,7 @@ export class WebSocketAnalyzer {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('[WS] message received', data.success, data.frame_shape, data.detections?.length);
           if (data.frame_shape) {
             this.lastFrameShape = data.frame_shape;
           } else if (this.lastFrameShape) {
@@ -106,15 +109,17 @@ export class WebSocketAnalyzer {
       };
       
       this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error('[WS] error:', error);
         if (onError) {
           onError(error);
         }
       };
       
-      this.ws.onclose = () => {
-        console.log('WebSocket closed');
-        this.attemptReconnect(onFrame, onError, onOpen);
+      this.ws.onclose = (event) => {
+        console.log('[WS] closed', event.code, event.reason);
+        if (!this.manuallyClosed) {
+          this.attemptReconnect(onFrame, onError, onOpen);
+        }
       };
       
     } catch (error) {
@@ -132,7 +137,7 @@ export class WebSocketAnalyzer {
   ) {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+      console.log(`[WS] reconnect attempt (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
 
       setTimeout(() => {
         this.connect(onFrame, onError, onOpen);
@@ -144,6 +149,7 @@ export class WebSocketAnalyzer {
   
   sendFrame(imageBase64: string, timestamp: number, frameWidth: number, frameHeight: number) {
     this.lastFrameShape = [frameHeight, frameWidth];
+    console.log('[WS] sendFrame', timestamp, this.lastFrameShape, 'connected:', this.isConnected());
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       try {
         this.ws.send(JSON.stringify({
@@ -160,6 +166,7 @@ export class WebSocketAnalyzer {
   }
   
   disconnect() {
+    this.manuallyClosed = true;
     if (this.ws) {
       this.ws.close();
       this.ws = null;

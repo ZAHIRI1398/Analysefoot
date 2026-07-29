@@ -253,6 +253,10 @@ function App() {
   }
 
   const stopAnalysis = () => {
+    if (videoElement) {
+      videoElement.onended = null
+      videoElement.pause()
+    }
     if (analysisServiceRef.current) {
       analysisServiceRef.current.stopAnalysis()
       analysisServiceRef.current = null
@@ -262,20 +266,32 @@ function App() {
 
   const startAnalysis = async (realAPI: boolean) => {
     if (!videoElement) return
+    if (videoElement.ended) {
+      videoElement.currentTime = 0
+    }
+    videoElement.playsInline = true
     try {
       await videoElement.play()
-    } catch {
-      // Ignorer si la lecture automatique est bloquée, l'utilisateur peut démarrer manuellement
+    } catch (err) {
+      console.warn('[App] play() failed, trying muted', err)
+      videoElement.muted = true
+      try {
+        await videoElement.play()
+      } catch (err2) {
+        console.error('[App] play() failed even muted', err2)
+      }
     }
 
     const service = new AnalysisService(realAPI)
     analysisServiceRef.current = service
+    videoElement.onended = stopAnalysis
 
     service.startAnalysis(videoElement, (frame) => {
+      console.log('[App] frame callback', frame.detections.length, frame.radarPositions.length)
       setCurrentDetections(frame.detections)
       setRadarPositions(frame.radarPositions)
       setAnalysisFrames(prev => {
-        const next = prev.length >= 120 ? prev.slice(-119) : prev
+        const next = prev.length >= 1000 ? prev.slice(-999) : prev
         return next.concat(frame)
       })
       setFrameCount(prev => prev + 1)
@@ -441,6 +457,8 @@ function App() {
                 stats={playerStatsService.getAllPlayerStats()}
                 selectedPlayerId={selectedPlayerId}
                 onSelectPlayer={setSelectedPlayerId}
+                homePossession={playerStatsService.getTeamStats('home').possession}
+                awayPossession={playerStatsService.getTeamStats('away').possession}
               />
             </div>
           </section>

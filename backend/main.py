@@ -10,6 +10,8 @@ from typing import Optional
 
 from models.yolo_detector import YOLODetector
 from models.byte_tracker import ByteTracker
+from models.team_assigner import TeamAssigner
+from models.ball_assigner import BallAssigner
 from config import Config
 
 app = FastAPI(title="Football AI Analysis API")
@@ -26,14 +28,20 @@ app.add_middleware(
 # Initialize models (lazy loading for faster startup)
 yolo_detector: Optional[YOLODetector] = None
 byte_tracker: Optional[ByteTracker] = None
+team_assigner: Optional[TeamAssigner] = None
+ball_assigner: Optional[BallAssigner] = None
 
 def get_models():
-    global yolo_detector, byte_tracker
+    global yolo_detector, byte_tracker, team_assigner, ball_assigner
     if yolo_detector is None:
         yolo_detector = YOLODetector()
     if byte_tracker is None:
         byte_tracker = ByteTracker()
-    return yolo_detector, byte_tracker
+    if team_assigner is None:
+        team_assigner = TeamAssigner(Config.HOME_TEAM_COLOR, Config.AWAY_TEAM_COLOR)
+    if ball_assigner is None:
+        ball_assigner = BallAssigner()
+    return yolo_detector, byte_tracker, team_assigner, ball_assigner
 
 @app.get("/")
 async def root():
@@ -47,7 +55,7 @@ async def root():
 async def health_check():
     """Check if models are loaded"""
     try:
-        detector, tracker = get_models()
+        detector, tracker, team_assigner, ball_assigner = get_models()
         return {
             "status": "healthy",
             "yolo_loaded": detector is not None,
@@ -63,7 +71,7 @@ async def analyze_frame(file: UploadFile = File(...)):
     Analyse une frame vidéo et retourne les détections et tracks
     """
     try:
-        detector, tracker = get_models()
+        detector, tracker, team_assigner, ball_assigner = get_models()
         
         # Read image
         contents = await file.read()
@@ -88,10 +96,18 @@ async def analyze_frame(file: UploadFile = File(...)):
         # ByteTrack tracking
         tracks = tracker.update(detections, frame.shape)
         
+        # Team assignment based on jersey color
+        if Config.USE_TEAM_ASSIGNMENT:
+            detections = team_assigner.assign_teams(frame, detections)
+        
+        # Ball-to-player assignment and possession
+        detections, possession = ball_assigner.assign_ball(detections)
+        
         return {
             "success": True,
             "detections": detections,
             "tracks": tracks,
+            "possession": possession,
             "frame_shape": frame.shape,
             "timestamp": 0
         }
@@ -105,7 +121,7 @@ async def analyze_base64(data: dict):
     Analyse une frame envoyée en base64
     """
     try:
-        detector, tracker = get_models()
+        detector, tracker, team_assigner, ball_assigner = get_models()
         
         # Decode base64 image
         image_data = data.get('image')
@@ -129,10 +145,18 @@ async def analyze_base64(data: dict):
         # ByteTrack tracking
         tracks = tracker.update(detections, frame.shape)
         
+        # Team assignment based on jersey color
+        if Config.USE_TEAM_ASSIGNMENT:
+            detections = team_assigner.assign_teams(frame, detections)
+        
+        # Ball-to-player assignment and possession
+        detections, possession = ball_assigner.assign_ball(detections)
+        
         return {
             "success": True,
             "detections": detections,
             "tracks": tracks,
+            "possession": possession,
             "frame_shape": frame.shape,
             "timestamp": data.get('timestamp', 0)
         }
@@ -148,7 +172,7 @@ async def websocket_analyze(websocket: WebSocket):
     await websocket.accept()
 
     try:
-        detector, tracker = await asyncio.to_thread(get_models)
+        detector, tracker, team_assigner, ball_assigner = await asyncio.to_thread(get_models)
 
         while True:
             # Receive frame data
@@ -177,11 +201,19 @@ async def websocket_analyze(websocket: WebSocket):
             detections = await asyncio.to_thread(detector.detect, frame)
             tracks = await asyncio.to_thread(tracker.update, detections, frame.shape)
 
+            # Team assignment based on jersey color
+            if Config.USE_TEAM_ASSIGNMENT:
+                detections = await asyncio.to_thread(team_assigner.assign_teams, frame, detections)
+
+            # Ball-to-player assignment and possession
+            detections, possession = await asyncio.to_thread(ball_assigner.assign_ball, detections)
+
             # Send results
             result = {
                 "success": True,
                 "detections": detections,
                 "tracks": tracks,
+                "possession": possession,
                 "frame_shape": frame.shape,
                 "timestamp": frame_data.get('timestamp', 0)
             }

@@ -3,17 +3,20 @@ import { playerStatsService } from './playerStatsService'
 
 export interface Detection {
   id: string
-  class: 'player' | 'ball' | 'referee'
+  class: 'player' | 'ball' | 'referee' | 'goalkeeper'
   confidence: number
   bbox: { x: number; y: number; width: number; height: number }
   team?: 'home' | 'away'
   trackId?: number
+  teamColor?: [number, number, number]
+  hasBall?: boolean
 }
 
 export interface AnalysisFrame {
   timestamp: number
   detections: Detection[]
   radarPositions: Array<{ x: number; y: number; team: 'home' | 'away'; id: number }>
+  possession?: { home: number; away: number; neutral: number }
 }
 
 export class AnalysisService {
@@ -87,14 +90,16 @@ export class AnalysisService {
         const detections = this.convertAPIDetections(data.detections, data.frame_shape)
         const radarPositions = this.convertDetectionsToRadarPositions(detections)
 
-        this.updatePlayerStats(detections, radarPositions)
+        this.updatePlayerStats(detections, radarPositions, data.possession)
 
         const frame: AnalysisFrame = {
           timestamp: data.timestamp,
           detections,
           radarPositions,
+          possession: data.possession,
         }
 
+        console.log('[AnalysisService] frame callback', this.frameCount, detections.length, radarPositions.length, data.possession)
         if (this.onFrameCallback) {
           this.onFrameCallback(frame)
         }
@@ -114,8 +119,10 @@ export class AnalysisService {
       },
       () => {
         // Start or resume the API loop on every successful connection
+        console.log('[AnalysisService] WS open, isAnalyzing:', this.isAnalyzing)
         if (this.isAnalyzing) {
           this.activeLoopId++
+          console.log('[AnalysisService] starting API loop', this.activeLoopId)
           this.processFrameWithAPI()
         }
       }
@@ -124,6 +131,12 @@ export class AnalysisService {
 
   private async processFrameWithAPI() {
     if (!this.isAnalyzing || !this.videoElement || !this.canvas) {
+      return
+    }
+
+    if (this.videoElement.ended) {
+      console.log('[AnalysisService] video ended, stopping real analysis')
+      this.stopAnalysis()
       return
     }
 
@@ -148,6 +161,7 @@ export class AnalysisService {
     
     // Send to API via WebSocket
     this.lastAPILoopId = loopId
+    console.log('[AnalysisService] sendFrame loop', loopId, captureWidth, captureHeight)
     if (this.wsAnalyzer && this.wsAnalyzer.isConnected()) {
       this.wsAnalyzer.sendFrame(imageData, this.videoElement.currentTime, captureWidth, captureHeight)
       // Next frame is scheduled by the response callback to avoid queue buildup
@@ -156,6 +170,12 @@ export class AnalysisService {
 
   private processFrame() {
     if (!this.isAnalyzing || !this.videoElement || !this.onFrameCallback) {
+      return
+    }
+
+    if (this.videoElement.ended) {
+      console.log('[AnalysisService] video ended, stopping simulation')
+      this.stopAnalysis()
       return
     }
 
@@ -185,33 +205,32 @@ export class AnalysisService {
     }, 1000 / 15)
   }
 
-  private updatePlayerStats(detections: Detection[], radarPositions: Array<{ x: number; y: number; team: 'home' | 'away'; id: number }>) {
+  private updatePlayerStats(
+    detections: Detection[],
+    radarPositions: Array<{ x: number; y: number; team: 'home' | 'away'; id: number }>,
+    possession?: { home: number; away: number; neutral: number }
+  ) {
     const timestamp = Date.now()
-    
+
     radarPositions.forEach(pos => {
       // Initialize player if not exists
       playerStatsService.initializePlayer(pos.id, pos.team)
-      
+
       // Update position
       playerStatsService.updatePlayerPosition(pos.id, pos.x, pos.y, timestamp)
     })
 
-    // Simulate touches for players near ball
-    const ballDetection = detections.find(d => d.class === 'ball')
-    if (ballDetection) {
-      const players = detections.filter(d => d.class === 'player')
-      players.forEach(player => {
-        const distance = this.calculateDistance(
-          ballDetection.bbox.x + ballDetection.bbox.width / 2,
-          ballDetection.bbox.y + ballDetection.bbox.height / 2,
-          player.bbox.x + player.bbox.width / 2,
-          player.bbox.y + player.bbox.height / 2
-        )
-        
-        if (distance < 50 && player.trackId) {
-          playerStatsService.recordTouch(player.trackId)
-        }
-      })
+    // Register ball touches for the player the backend assigned the ball to
+    const ballCarrier = detections.find(d => (d.class === 'player' || d.class === 'goalkeeper') && d.hasBall)
+    if (ballCarrier?.trackId) {
+      playerStatsService.recordTouch(ballCarrier.trackId)
+    }
+
+    // Update team possession from backend if provided
+    if (possession) {
+      const total = possession.home + possession.away
+      const homePossession = total > 0 ? (possession.home / total) * 100 : 50
+      playerStatsService.updateTeamPossession(homePossession)
     }
   }
 
@@ -220,7 +239,7 @@ export class AnalysisService {
     const videoHeight = this.videoElement?.videoHeight || 720
 
     return detections
-      .filter(d => d.class === 'player' && d.trackId !== undefined)
+      .filter(d => (d.class === 'player' || d.class === 'goalkeeper') && d.trackId !== undefined)
       .map(d => {
         const centerX = d.bbox.x + d.bbox.width / 2
         const bottomY = d.bbox.y + d.bbox.height
@@ -251,6 +270,7 @@ export class AnalysisService {
     const [frameHeight = 1, frameWidth = 1] = frameShape ?? []
     const widthScale = this.videoElement ? this.videoElement.videoWidth / frameWidth : 1
     const heightScale = this.videoElement ? this.videoElement.videoHeight / frameHeight : 1
+    console.log('[AnalysisService] convertAPIDetections raw:', apiDetections.length, 'frameShape:', frameShape, 'scale:', widthScale, heightScale, 'video:', this.videoElement?.videoWidth, this.videoElement?.videoHeight)
 
     return apiDetections
       .map((det, index): Detection | null => {
@@ -261,8 +281,15 @@ export class AnalysisService {
 
         const [x1, y1, x2, y2] = det.bbox
         const centerX = ((x1 + x2) / 2) / frameWidth
-        const team = centerX < 0.45 ? 'home' : centerX > 0.55 ? 'away' : 'home'
         const trackId = det.track_id ?? (index + 1)
+
+        // Prefer team provided by backend, fall back to x-position heuristic
+        let team: 'home' | 'away' | undefined
+        if (det.team === 'home' || det.team === 'away') {
+          team = det.team
+        } else {
+          team = centerX < 0.45 ? 'home' : centerX > 0.55 ? 'away' : 'home'
+        }
 
         return {
           id: `track-${trackId}`,
@@ -276,16 +303,19 @@ export class AnalysisService {
           },
           team,
           trackId,
+          teamColor: det.team_color_rgb,
+          hasBall: det.has_ball,
         }
       })
       .filter((det): det is Detection => det !== null)
   }
 
-  private mapClass(className: string): 'player' | 'ball' | 'referee' | 'unknown' {
-    const classMap: { [key: string]: 'player' | 'ball' | 'referee' } = {
+  private mapClass(className: string): 'player' | 'ball' | 'referee' | 'goalkeeper' | 'unknown' {
+    const classMap: { [key: string]: 'player' | 'ball' | 'referee' | 'goalkeeper' } = {
       'player': 'player',
       'ball': 'ball',
       'referee': 'referee',
+      'goalkeeper': 'goalkeeper',
       'person': 'player',
       'sports ball': 'ball',
     }

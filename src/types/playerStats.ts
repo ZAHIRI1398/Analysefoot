@@ -22,6 +22,9 @@ export interface PlayerStats {
   timeInMidfield: number // en secondes
   timeInAttackingThird: number // en secondes
   
+  // Internal
+  frameCount?: number
+
   // Performance
   passAccuracy?: number // pourcentage
   shotCount?: number

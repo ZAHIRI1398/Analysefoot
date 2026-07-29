@@ -22,12 +22,12 @@ export class PlayerStatsService {
     },
   }
   private lastPositions: Map<number, { x: number; y: number; timestamp: number }> = new Map()
-  private frameCount = 0
   private fieldWidth = 105 // mètres
   private fieldHeight = 68 // mètres
 
   initializePlayer(playerId: number, team: 'home' | 'away', jerseyNumber?: number) {
     if (!this.playerStats.has(playerId)) {
+      console.log('[PlayerStatsService] initializePlayer', playerId, team)
       this.playerStats.set(playerId, {
         id: playerId,
         team,
@@ -36,6 +36,7 @@ export class PlayerStatsService {
         averageSpeed: 0,
         maxSpeed: 0,
         sprintCount: 0,
+        frameCount: 0,
         averagePosition: { x: 50, y: 50 },
         positionHeatmap: [],
         timeInPossession: 0,
@@ -64,63 +65,70 @@ export class PlayerStatsService {
 
     if (lastPos) {
       const timeDiff = (timestamp - lastPos.timestamp) / 1000 // en secondes
-      
-      if (timeDiff > 0 && timeDiff < 1) { // Ignorer les sauts temporels > 1 seconde
+      console.log('[PlayerStatsService] updatePlayerPosition', playerId, x, y, 'timeDiff', timeDiff)
+
+      if (timeDiff > 0) {
+        // Capper les sauts temporels à 3s pour éviter des vitesses aberrantes
+        const effectiveTimeDiff = Math.min(timeDiff, 3)
         const lastXMeters = (lastPos.x / 100) * this.fieldWidth
         const lastYMeters = (lastPos.y / 100) * this.fieldHeight
-        
+
         const distance = Math.sqrt(
           Math.pow(currentXMeters - lastXMeters, 2) +
           Math.pow(currentYMeters - lastYMeters, 2)
         )
-        
+
         // Limiter la vitesse à des valeurs réalistes (max 40 km/h pour un footballeur)
-        const speed = Math.min((distance / timeDiff) * 3.6, 40) // en km/h
-        
+        const speed = Math.min((distance / effectiveTimeDiff) * 3.6, 40) // en km/h
+
         stats.totalDistance += distance
-        stats.averageSpeed = (stats.averageSpeed * this.frameCount + speed) / (this.frameCount + 1)
+        stats.averageSpeed = (stats.averageSpeed * (stats.frameCount || 0) + speed) / ((stats.frameCount || 0) + 1)
         stats.maxSpeed = Math.max(stats.maxSpeed, speed)
-        
+
         // Compter les sprints (vitesse > 25 km/h)
         if (speed > 25) {
           stats.sprintCount++
         }
-      }
-    }
 
-    // Mettre à jour la position moyenne
-    stats.averagePosition = {
-      x: (stats.averagePosition.x * this.frameCount + x) / (this.frameCount + 1),
-      y: (stats.averagePosition.y * this.frameCount + y) / (this.frameCount + 1),
-    }
+        // Mettre à jour la position moyenne avec le compteur du joueur
+        stats.averagePosition = {
+          x: (stats.averagePosition.x * (stats.frameCount || 0) + x) / ((stats.frameCount || 0) + 1),
+          y: (stats.averagePosition.y * (stats.frameCount || 0) + y) / ((stats.frameCount || 0) + 1),
+        }
 
-    // Ajouter à la heatmap
-    stats.positionHeatmap.push({ x, y, intensity: 1 })
-    if (stats.positionHeatmap.length > 1000) {
-      stats.positionHeatmap.shift()
-    }
+        // Ajouter à la heatmap
+        stats.positionHeatmap.push({ x, y, intensity: 1 })
+        if (stats.positionHeatmap.length > 1000) {
+          stats.positionHeatmap.shift()
+        }
 
-    // Calculer le temps passé dans chaque zone
-    if (stats.team === 'home') {
-      if (x < 33) {
-        stats.timeInDefensiveThird += 1/15 // ~15 FPS
-      } else if (x > 66) {
-        stats.timeInAttackingThird += 1/15
-      } else {
-        stats.timeInMidfield += 1/15
+        // Calculer le temps passé dans chaque zone avec le vrai intervalle
+        if (stats.team === 'home') {
+          if (x < 33) {
+            stats.timeInDefensiveThird += effectiveTimeDiff
+          } else if (x > 66) {
+            stats.timeInAttackingThird += effectiveTimeDiff
+          } else {
+            stats.timeInMidfield += effectiveTimeDiff
+          }
+        } else {
+          if (x > 66) {
+            stats.timeInDefensiveThird += effectiveTimeDiff
+          } else if (x < 33) {
+            stats.timeInAttackingThird += effectiveTimeDiff
+          } else {
+            stats.timeInMidfield += effectiveTimeDiff
+          }
+        }
+
+        stats.frameCount++
       }
     } else {
-      if (x > 66) {
-        stats.timeInDefensiveThird += 1/15
-      } else if (x < 33) {
-        stats.timeInAttackingThird += 1/15
-      } else {
-        stats.timeInMidfield += 1/15
-      }
+      // Première position connue : juste stocker sans calculer de vitesse/temps
+      stats.positionHeatmap.push({ x, y, intensity: 1 })
     }
 
     this.lastPositions.set(playerId, { x, y, timestamp })
-    this.frameCount++
   }
 
   recordTouch(playerId: number) {
@@ -142,7 +150,9 @@ export class PlayerStatsService {
   }
 
   getAllPlayerStats(): PlayerStats[] {
-    return Array.from(this.playerStats.values())
+    const stats = Array.from(this.playerStats.values())
+    console.log('[PlayerStatsService] getAllPlayerStats', stats.length)
+    return stats
   }
 
   getTeamStats(team: 'home' | 'away'): TeamStats {
@@ -179,7 +189,6 @@ export class PlayerStatsService {
   reset() {
     this.playerStats.clear()
     this.lastPositions.clear()
-    this.frameCount = 0
     this.teamStats = {
       home: {
         team: 'home',

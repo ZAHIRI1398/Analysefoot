@@ -30,7 +30,7 @@ def encode_image_to_data_url(img):
 
 
 async def run():
-    uri = "ws://127.0.0.1:8002/ws/analyze"
+    uri = "ws://127.0.0.1:8001/ws/analyze"
     try:
         img = make_test_image()
         data_url = encode_image_to_data_url(img)

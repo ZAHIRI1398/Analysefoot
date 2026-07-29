@@ -5,24 +5,43 @@ interface PlayerStatsViewProps {
   stats: PlayerStats[]
   selectedPlayerId: number | null
   onSelectPlayer: (id: number | null) => void
+  homePossession?: number
+  awayPossession?: number
 }
 
-export function PlayerStatsView({ stats, selectedPlayerId, onSelectPlayer }: PlayerStatsViewProps) {
+export function PlayerStatsView({ stats, selectedPlayerId, onSelectPlayer, homePossession = 50, awayPossession = 50 }: PlayerStatsViewProps) {
+  console.log('[PlayerStatsView] stats', stats.length, stats[0])
   const homePlayers = stats.filter(p => p.team === 'home')
   const awayPlayers = stats.filter(p => p.team === 'away')
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-white">Statistiques des Joueurs</h3>
-        {selectedPlayerId && (
-          <button
-            onClick={() => onSelectPlayer(null)}
-            className="text-sm text-slate-400 hover:text-white transition-colors"
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-white">Statistiques des Joueurs</h3>
+          {selectedPlayerId && (
+            <button
+              onClick={() => onSelectPlayer(null)}
+              className="text-sm text-slate-400 hover:text-white transition-colors"
+            >
+              Désélectionner
+            </button>
+          )}
+        </div>
+        <div className="flex h-4 w-full overflow-hidden rounded-full bg-slate-800">
+          <div
+            className="bg-emerald-500 text-[10px] font-bold text-slate-950 flex items-center justify-center"
+            style={{ width: `${homePossession}%` }}
           >
-            Désélectionner
-          </button>
-        )}
+            {homePossession > 10 && `${homePossession.toFixed(0)}%`}
+          </div>
+          <div
+            className="bg-blue-500 text-[10px] font-bold text-slate-950 flex items-center justify-center"
+            style={{ width: `${awayPossession}%` }}
+          >
+            {awayPossession > 10 && `${awayPossession.toFixed(0)}%`}
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
