@@ -283,15 +283,18 @@ function App() {
       videoElement.currentTime = 0
     }
     videoElement.playsInline = true
-    try {
-      await videoElement.play()
-    } catch (err) {
-      console.warn('[App] play() failed, trying muted', err)
-      videoElement.muted = true
+    // For real API the analysis service controls frame stepping itself.
+    if (!realAPI) {
       try {
         await videoElement.play()
-      } catch (err2) {
-        console.error('[App] play() failed even muted', err2)
+      } catch (err) {
+        console.warn('[App] play() failed, trying muted', err)
+        videoElement.muted = true
+        try {
+          await videoElement.play()
+        } catch (err2) {
+          console.error('[App] play() failed even muted', err2)
+        }
       }
     }
 

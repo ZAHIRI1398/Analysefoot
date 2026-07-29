@@ -33,6 +33,8 @@ export class AnalysisService {
   private lastAPILoopId = 0
   private readonly maxCaptureWidth = 640
   private readonly maxCaptureHeight = 360
+  private frameSendTime = 0
+  private frameDelta = 0.5  // time to advance the video each frame based on backend latency
 
   constructor(useRealAPI: boolean = false) {
     this.useRealAPI = useRealAPI
@@ -105,6 +107,11 @@ export class AnalysisService {
         }
         this.frameCount++
 
+        // Adapt the next jump to the backend latency so the video keeps up
+        const elapsed = (performance.now() - this.frameSendTime) / 1000
+        this.frameDelta = Math.min(Math.max(elapsed, 0.05), 2.0)
+        console.log('[AnalysisService] next frameDelta', this.frameDelta)
+
         // Schedule next frame only after receiving the response to avoid latency buildup
         if (this.isAnalyzing) {
           this.scheduleNextAPIFrame(this.activeLoopId)
@@ -142,6 +149,28 @@ export class AnalysisService {
 
     const loopId = this.activeLoopId
 
+    // Advance by the measured processing time so the video follows the analysis speed
+    if (this.videoElement) {
+      this.videoElement.pause()
+    }
+
+    if (this.frameCount > 0 && this.videoElement) {
+      const nextTime = this.videoElement.currentTime + this.frameDelta
+      if (nextTime >= this.videoElement.duration) {
+        console.log('[AnalysisService] video reached end')
+        this.stopAnalysis()
+        return
+      }
+      this.videoElement.currentTime = nextTime
+      await new Promise<void>((resolve) => {
+        const onSeeked = () => {
+          this.videoElement?.removeEventListener('seeked', onSeeked)
+          resolve()
+        }
+        this.videoElement?.addEventListener('seeked', onSeeked)
+      })
+    }
+
     // Extract frame from video and resize for faster upload
     const ratio = Math.min(
       this.maxCaptureWidth / this.videoElement.videoWidth,
@@ -161,7 +190,8 @@ export class AnalysisService {
     
     // Send to API via WebSocket
     this.lastAPILoopId = loopId
-    console.log('[AnalysisService] sendFrame loop', loopId, captureWidth, captureHeight)
+    this.frameSendTime = performance.now()
+    console.log('[AnalysisService] sendFrame loop', loopId, this.videoElement.currentTime, captureWidth, captureHeight)
     if (this.wsAnalyzer && this.wsAnalyzer.isConnected()) {
       this.wsAnalyzer.sendFrame(imageData, this.videoElement.currentTime, captureWidth, captureHeight)
       // Next frame is scheduled by the response callback to avoid queue buildup
