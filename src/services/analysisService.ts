@@ -355,17 +355,44 @@ export class AnalysisService {
     }
 
     // Simulate ball
+    let ballDetection: Detection | null = null
     if (Math.random() > 0.1) {
       const ballX = Math.random() * (videoWidth - 50) + 25
       const ballY = Math.random() * (videoHeight - 100) + 50
 
-      detections.push({
+      ballDetection = {
         id: 'ball',
         class: 'ball',
         confidence: 0.85 + Math.random() * 0.14,
         bbox: { x: ballX, y: ballY, width: 15, height: 15 },
         trackId: 999,
-      })
+      }
+      detections.push(ballDetection)
+    }
+
+    // Assign the ball to the closest simulated player so touches/possession work in demo
+    if (ballDetection) {
+      const ballCenter = {
+        x: ballDetection.bbox.x + ballDetection.bbox.width / 2,
+        y: ballDetection.bbox.y + ballDetection.bbox.height / 2,
+      }
+      let closest: Detection | null = null
+      let minDist = Infinity
+      for (const d of detections) {
+        if (d.class !== 'player') continue
+        const playerCenter = {
+          x: d.bbox.x + d.bbox.width / 2,
+          y: d.bbox.y + d.bbox.height / 2,
+        }
+        const dist = this.calculateDistance(ballCenter.x, ballCenter.y, playerCenter.x, playerCenter.y)
+        if (dist < minDist) {
+          minDist = dist
+          closest = d
+        }
+      }
+      if (closest) {
+        closest.hasBall = true
+      }
     }
 
     // Occasionally add referee

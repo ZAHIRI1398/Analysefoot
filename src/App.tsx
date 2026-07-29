@@ -212,7 +212,7 @@ function App() {
   const [frameCount, setFrameCount] = useState(0)
   const [showAnalysisMode, setShowAnalysisMode] = useState(false)
   const [videoSrc, setVideoSrc] = useState<string | null>(null)
-  const [useRealAPI, setUseRealAPI] = useState(false) // Désactiver l'API réelle par défaut pour éviter les connexions coûteuses au chargement
+  const [useRealAPI, setUseRealAPI] = useState(true) // Utiliser l'API réelle par défaut pour obtenir de vraies détections
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
   const analysisServiceRef = useRef<AnalysisService | null>(null)
 
@@ -247,9 +247,9 @@ function App() {
     window.setTimeout(() => setCopied(false), 1800)
   }
 
-  const handleVideoLoaded = (video: HTMLVideoElement) => {
-    setVideoElement(video)
-    setVideoSrc(video.src)
+  const handleVideoSelected = (url: string) => {
+    setVideoSrc(url)
+    setVideoElement(null)
   }
 
   const stopAnalysis = () => {
@@ -266,6 +266,19 @@ function App() {
 
   const startAnalysis = async (realAPI: boolean) => {
     if (!videoElement) return
+
+    // Wait for video metadata so AnalysisService and Overlay get correct dimensions
+    if (videoElement.videoWidth === 0 || videoElement.videoHeight === 0) {
+      console.log('[App] waiting for video metadata...')
+      await new Promise<void>((resolve) => {
+        const onMeta = () => {
+          videoElement.removeEventListener('loadedmetadata', onMeta)
+          resolve()
+        }
+        videoElement.addEventListener('loadedmetadata', onMeta)
+      })
+    }
+
     if (videoElement.ended) {
       videoElement.currentTime = 0
     }
@@ -418,7 +431,7 @@ function App() {
           <section className="grid gap-6 lg:grid-cols-2">
             <div className="space-y-4">
               <VideoUploader 
-                onVideoLoaded={handleVideoLoaded}
+                onVideoSelected={handleVideoSelected}
                 isAnalyzing={isAnalyzing}
                 onToggleAnalysis={handleToggleAnalysis}
               />

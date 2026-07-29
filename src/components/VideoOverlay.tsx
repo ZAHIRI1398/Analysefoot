@@ -129,6 +129,9 @@ export function VideoOverlay({ detections, videoWidth, videoHeight, onPlayerClic
 
   useEffect(() => {
     draw()
+    const handleResize = () => draw()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
   }, [draw])
 
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {

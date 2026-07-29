@@ -2,13 +2,12 @@ import { useRef, useState } from 'react'
 import { Upload, X, Play, Pause } from 'lucide-react'
 
 interface VideoUploaderProps {
-  onVideoLoaded: (videoElement: HTMLVideoElement) => void
+  onVideoSelected: (url: string) => void
   isAnalyzing: boolean
   onToggleAnalysis: () => void
 }
 
-export function VideoUploader({ onVideoLoaded, isAnalyzing, onToggleAnalysis }: VideoUploaderProps) {
-  const videoRef = useRef<HTMLVideoElement>(null)
+export function VideoUploader({ onVideoSelected, isAnalyzing, onToggleAnalysis }: VideoUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
@@ -22,12 +21,7 @@ export function VideoUploader({ onVideoLoaded, isAnalyzing, onToggleAnalysis }: 
       setVideoFile(file)
       const url = URL.createObjectURL(file)
       setVideoUrl(url)
-
-      window.setTimeout(() => {
-        if (videoRef.current) {
-          onVideoLoaded(videoRef.current)
-        }
-      }, 100)
+      onVideoSelected(url)
     }
   }
 
@@ -39,12 +33,6 @@ export function VideoUploader({ onVideoLoaded, isAnalyzing, onToggleAnalysis }: 
     setVideoUrl(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
-    }
-  }
-
-  const handleVideoLoaded = () => {
-    if (videoRef.current) {
-      onVideoLoaded(videoRef.current)
     }
   }
 
@@ -101,16 +89,6 @@ export function VideoUploader({ onVideoLoaded, isAnalyzing, onToggleAnalysis }: 
             >
               <X className="size-5" />
             </button>
-          </div>
-
-          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black">
-            <video
-              ref={videoRef}
-              src={videoUrl ?? undefined}
-              onLoadedMetadata={handleVideoLoaded}
-              className="w-full"
-              controls
-            />
           </div>
 
           <button
