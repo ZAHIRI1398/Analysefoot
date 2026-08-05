@@ -1,16 +1,18 @@
-import { Download, BarChart3, Cpu } from 'lucide-react'
+import { Download, BarChart3, Cpu, Video, Square } from 'lucide-react'
 import { AnalysisFrame } from '../services/analysisService'
 
 interface AnalysisControlsProps {
   isAnalyzing: boolean
+  isRecording?: boolean
   frameCount: number
   frames: AnalysisFrame[]
   useRealAPI: boolean
   setUseRealAPI: (value: boolean) => void
   onExport: () => void
+  onToggleRecording?: () => void
 }
 
-export function AnalysisControls({ isAnalyzing, frameCount, frames, useRealAPI, setUseRealAPI, onExport }: AnalysisControlsProps) {
+export function AnalysisControls({ isAnalyzing, isRecording, frameCount, frames, useRealAPI, setUseRealAPI, onExport, onToggleRecording }: AnalysisControlsProps) {
   return (
     <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-6 backdrop-blur">
       <div className="mb-4 flex items-center gap-3">
@@ -58,9 +60,22 @@ export function AnalysisControls({ isAnalyzing, frameCount, frames, useRealAPI, 
       </div>
 
       <button
+        onClick={onToggleRecording}
+        disabled={!onToggleRecording}
+        className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold text-white transition disabled:opacity-50 disabled:cursor-not-allowed ${
+          isRecording
+            ? 'bg-red-500 hover:bg-red-600'
+            : 'bg-emerald-500 hover:bg-emerald-600'
+        }`}
+      >
+        {isRecording ? <Square className="size-4" /> : <Video className="size-4" />}
+        {isRecording ? 'Arrêter l\'enregistrement' : 'Enregistrer la vidéo (overlay)'}
+      </button>
+
+      <button
         onClick={onExport}
         disabled={frames.length === 0}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-3 font-bold text-white transition hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-3 font-bold text-white transition hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <Download className="size-4" />
         Exporter l'analyse (JSON)

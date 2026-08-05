@@ -214,7 +214,11 @@ function App() {
   const [videoSrc, setVideoSrc] = useState<string | null>(null)
   const [useRealAPI, setUseRealAPI] = useState(true) // Utiliser l'API réelle par défaut pour obtenir de vraies détections
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
+  const [isRecording, setIsRecording] = useState(false)
   const analysisServiceRef = useRef<AnalysisService | null>(null)
+  const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordedChunksRef = useRef<Blob[]>([])
 
   const stage = stages.find((item) => item.id === activeStage) ?? stages[0]
   const Icon = stage.icon
@@ -346,6 +350,46 @@ function App() {
     URL.revokeObjectURL(url)
   }
 
+  const handleToggleRecording = () => {
+    if (isRecording) {
+      mediaRecorderRef.current?.stop()
+      setIsRecording(false)
+      return
+    }
+
+    const canvas = overlayCanvasRef.current
+    if (!canvas) return
+
+    const stream = canvas.captureStream(30)
+    const mimeType = MediaRecorder.isTypeSupported('video/webm; codecs=vp9')
+      ? 'video/webm; codecs=vp9'
+      : 'video/webm'
+    const recorder = new MediaRecorder(stream, { mimeType })
+    recordedChunksRef.current = []
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordedChunksRef.current.push(e.data)
+    }
+
+    recorder.onstop = () => {
+      const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `match-overlay-${Date.now()}.webm`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      recordedChunksRef.current = []
+      mediaRecorderRef.current = null
+    }
+
+    recorder.start()
+    mediaRecorderRef.current = recorder
+    setIsRecording(true)
+  }
+
   return (
     <main className="relative min-h-screen overflow-hidden text-slate-50">
       <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.05)_1px,transparent_1px)] [background-size:56px_56px]" />
@@ -450,9 +494,11 @@ function App() {
                     }}
                   />
                   <VideoOverlay 
+                    ref={overlayCanvasRef}
                     detections={currentDetections}
                     videoWidth={videoElement?.videoWidth || 1280}
                     videoHeight={videoElement?.videoHeight || 720}
+                    videoElement={videoElement}
                     onPlayerClick={setSelectedPlayerId}
                     selectedPlayerId={selectedPlayerId}
                   />
@@ -463,11 +509,13 @@ function App() {
               <RadarView positions={radarPositions} />
               <AnalysisControls 
                 isAnalyzing={isAnalyzing}
+                isRecording={isRecording}
                 frameCount={frameCount}
                 frames={analysisFrames}
                 useRealAPI={useRealAPI}
                 setUseRealAPI={handleSetUseRealAPI}
                 onExport={handleExportAnalysis}
+                onToggleRecording={videoElement ? handleToggleRecording : undefined}
               />
               <PlayerStatsView 
                 stats={playerStatsService.getAllPlayerStats()}
