@@ -15,6 +15,7 @@ export interface AnalysisResult {
   tracks: any[];
   frame_shape?: number[];
   timestamp: number;
+  possession?: { home: number; away: number; neutral: number };
 }
 
 export async function analyzeFrame(file: File): Promise<AnalysisResult> {
