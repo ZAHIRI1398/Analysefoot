@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Upload, X, Play, Pause } from 'lucide-react'
+import { Upload, X, Play, Pause, Download } from 'lucide-react'
 
 interface VideoUploaderProps {
   onVideoSelected: (url: string) => void
@@ -83,6 +83,14 @@ export function VideoUploader({ onVideoSelected, isAnalyzing, onToggleAnalysis }
                 <p className="text-sm text-slate-400">{(videoFile.size / (1024 * 1024)).toFixed(2)} MB</p>
               </div>
             </div>
+            <a
+              href={videoUrl || undefined}
+              download={videoFile?.name || 'video.mp4'}
+              className="rounded-xl bg-emerald-400/20 p-2 text-emerald-300 transition hover:bg-emerald-400/30"
+              title="Télécharger la vidéo"
+            >
+              <Download className="size-5" />
+            </a>
             <button
               onClick={handleRemoveVideo}
               className="rounded-xl bg-red-500/20 p-2 text-red-300 transition hover:bg-red-500/30"
