@@ -99,10 +99,13 @@ export class AnalysisService {
         const detections = this.convertAPIDetections(data.detections, data.frame_shape)
         const radarPositions = this.convertDetectionsToRadarPositions(detections)
 
-        this.updatePlayerStats(detections, radarPositions, data.possession, data.timestamp * 1000)
+        // Fallback to the video current time if the backend does not echo a timestamp
+        const backendTime = data.timestamp || this.videoElement?.currentTime || 0
+
+        this.updatePlayerStats(detections, radarPositions, data.possession, backendTime * 1000)
 
         const frame: AnalysisFrame = {
-          timestamp: data.timestamp,
+          timestamp: backendTime,
           detections,
           radarPositions,
           possession: data.possession,
@@ -223,11 +226,16 @@ export class AnalysisService {
     const detections = this.simulateDetections()
     const radarPositions = this.simulateRadarPositions()
 
+    // The video is not actually playing in simulation, so advance time frame by frame
+    // based on the 15 FPS simulation rate to keep timestamps and stats meaningful.
+    const startTime = this.videoElement?.currentTime || 0
+    const frameTime = startTime + this.frameCount / 15
+
     // Update player statistics using video time
-    this.updatePlayerStats(detections, radarPositions, undefined, (this.videoElement?.currentTime || 0) * 1000)
+    this.updatePlayerStats(detections, radarPositions, undefined, frameTime * 1000)
 
     const frame: AnalysisFrame = {
-      timestamp: this.videoElement.currentTime,
+      timestamp: frameTime,
       detections,
       radarPositions,
     }
