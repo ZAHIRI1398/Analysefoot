@@ -209,9 +209,12 @@ export class PlayerStatsService {
     }
   }
 
-  mergePlayers(targetId: number, sourceIds: number[]) {
+  mergePlayers(targetId: number, sourceIds: number[], name?: string, jerseyNumber?: number) {
     const target = this.playerStats.get(targetId)
     if (!target) return
+
+    if (name !== undefined) target.name = name
+    if (jerseyNumber !== undefined) target.jerseyNumber = jerseyNumber
 
     for (const sourceId of sourceIds) {
       const source = this.playerStats.get(sourceId)

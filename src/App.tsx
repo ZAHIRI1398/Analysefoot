@@ -505,6 +505,7 @@ function App() {
                 onSelectPlayer={setSelectedPlayerId}
                 homePossession={playerStatsService.getTeamStats('home').possession}
                 awayPossession={playerStatsService.getTeamStats('away').possession}
+                onPlayersMerged={() => setStatsVersion(v => v + 1)}
               />
             </div>
           </section>

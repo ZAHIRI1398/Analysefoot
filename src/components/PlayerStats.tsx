@@ -1,5 +1,7 @@
 import { PlayerStats } from '../types/playerStats'
-import { Activity } from 'lucide-react'
+import { Activity, Users } from 'lucide-react'
+import { useState } from 'react'
+import { playerStatsService } from '../services/playerStatsService'
 
 interface PlayerStatsViewProps {
   stats: PlayerStats[]
@@ -7,9 +9,10 @@ interface PlayerStatsViewProps {
   onSelectPlayer: (id: number | null) => void
   homePossession?: number
   awayPossession?: number
+  onPlayersMerged?: () => void
 }
 
-export function PlayerStatsView({ stats, selectedPlayerId, onSelectPlayer, homePossession = 50, awayPossession = 50 }: PlayerStatsViewProps) {
+export function PlayerStatsView({ stats, selectedPlayerId, onSelectPlayer, homePossession = 50, awayPossession = 50, onPlayersMerged }: PlayerStatsViewProps) {
   console.log('[PlayerStatsView] stats', stats.length, stats[0])
   const homePlayers = stats.filter(p => p.team === 'home')
   const awayPlayers = stats.filter(p => p.team === 'away')
@@ -28,6 +31,14 @@ export function PlayerStatsView({ stats, selectedPlayerId, onSelectPlayer, homeP
             </button>
           )}
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-4 space-y-3">
+        <div className="flex items-center gap-2 text-emerald-300">
+          <Users className="w-4 h-4" />
+          <h4 className="text-sm font-bold">Regrouper les IDs d'un joueur</h4>
+        </div>
+        <PlayerMergeForm onMerge={onPlayersMerged} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -88,7 +99,7 @@ function PlayerCard({ stats, isSelected, onClick }: PlayerCardProps) {
           }`}>
             {stats.jerseyNumber || stats.id}
           </div>
-          <span className="text-white font-medium">Joueur #{stats.jerseyNumber || stats.id}</span>
+          <span className="text-white font-medium">{stats.name || `Joueur #${stats.jerseyNumber || stats.id}`}</span>
         </div>
         <Activity className={`w-4 h-4 ${stats.team === 'home' ? 'text-emerald-400' : 'text-blue-400'}`} />
       </div>
@@ -107,3 +118,69 @@ function PlayerCard({ stats, isSelected, onClick }: PlayerCardProps) {
   )
 }
 
+interface PlayerMergeFormProps {
+  onMerge?: () => void
+}
+
+function PlayerMergeForm({ onMerge }: PlayerMergeFormProps) {
+  const [name, setName] = useState('')
+  const [jerseyNumber, setJerseyNumber] = useState('')
+  const [ids, setIds] = useState('')
+  const [error, setError] = useState('')
+
+  const handleMerge = () => {
+    const parsed = ids
+      .split(/[,\s]+/)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(s => Number(s))
+      .filter(n => !isNaN(n) && n > 0)
+
+    if (parsed.length < 2) {
+      setError('Entrez au moins 2 IDs (le premier sera conservé).')
+      return
+    }
+
+    const [targetId, ...sourceIds] = parsed
+    const jersey = jerseyNumber.trim() ? Number(jerseyNumber.trim()) : undefined
+    playerStatsService.mergePlayers(targetId, sourceIds, name.trim() || undefined, jersey)
+    setError('')
+    setIds('')
+    onMerge?.()
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="grid gap-2 sm:grid-cols-3">
+        <input
+          type="text"
+          placeholder="Nom du joueur"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="rounded-lg border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+        />
+        <input
+          type="number"
+          placeholder="N° maillot"
+          value={jerseyNumber}
+          onChange={(e) => setJerseyNumber(e.target.value)}
+          className="rounded-lg border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+        />
+        <input
+          type="text"
+          placeholder="IDs à fusionner (ex: 3, 5, 7)"
+          value={ids}
+          onChange={(e) => setIds(e.target.value)}
+          className="rounded-lg border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+        />
+      </div>
+      {error && <p className="text-xs text-red-400">{error}</p>}
+      <button
+        onClick={handleMerge}
+        className="w-full rounded-lg bg-emerald-500 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-600 transition"
+      >
+        Regrouper et voir les statistiques
+      </button>
+    </div>
+  )
+}

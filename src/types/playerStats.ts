@@ -2,6 +2,7 @@ export interface PlayerStats {
   id: number
   team: 'home' | 'away'
   jerseyNumber?: number
+  name?: string
   
   // Mouvement
   totalDistance: number // en mètres
