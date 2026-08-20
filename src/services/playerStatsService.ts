@@ -78,8 +78,8 @@ export class PlayerStatsService {
           Math.pow(currentYMeters - lastYMeters, 2)
         )
 
-        // Limiter la vitesse à des valeurs réalistes (max 40 km/h pour un footballeur)
-        const speed = Math.min((distance / effectiveTimeDiff) * 3.6, 40) // en km/h
+        // Limiter la vitesse à des valeurs réalistes (max 36 km/h pour un footballeur)
+        const speed = Math.min((distance / effectiveTimeDiff) * 3.6, 36) // en km/h
 
         stats.totalDistance += distance
         stats.averageSpeed = (stats.averageSpeed * (stats.frameCount || 0) + speed) / ((stats.frameCount || 0) + 1)

@@ -237,8 +237,8 @@ function PlayerDetail({ player, onClose }: PlayerDetailProps) {
       </div>
 
       <div className="grid grid-cols-2 gap-3 text-center">
-        <StatBox label="Vitesse moy." value={`${(player.averageSpeed * 3.6).toFixed(1)} km/h`} accent={accent} />
-        <StatBox label="Vitesse max" value={`${(player.maxSpeed * 3.6).toFixed(1)} km/h`} accent={accent} />
+        <StatBox label="Vitesse moy." value={`${player.averageSpeed.toFixed(1)} km/h`} accent={accent} />
+        <StatBox label="Vitesse max" value={`${player.maxSpeed.toFixed(1)} km/h`} accent={accent} />
       </div>
 
       <div className="grid grid-cols-3 gap-3 text-center">
