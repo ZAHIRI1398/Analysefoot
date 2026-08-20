@@ -6,11 +6,13 @@ interface AnalysisControlsProps {
   isRecording?: boolean
   frameCount: number
   frames: AnalysisFrame[]
+  desiredFps?: number
+  setDesiredFps?: (fps: number) => void
   onExport: () => void
   onToggleRecording?: () => void
 }
 
-export function AnalysisControls({ isAnalyzing, isRecording, frameCount, frames, onExport, onToggleRecording }: AnalysisControlsProps) {
+export function AnalysisControls({ isAnalyzing, isRecording, frameCount, frames, desiredFps = 15, setDesiredFps, onExport, onToggleRecording }: AnalysisControlsProps) {
   return (
     <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-6 backdrop-blur">
       <div className="mb-4 flex items-center gap-3">
@@ -22,6 +24,26 @@ export function AnalysisControls({ isAnalyzing, isRecording, frameCount, frames,
           <h3 className="text-lg font-black">Analyse en cours</h3>
         </div>
       </div>
+
+      {setDesiredFps && (
+        <div className="rounded-xl bg-white/5 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Vitesse d'analyse</p>
+            <span className="text-sm font-black text-white">{desiredFps} FPS</span>
+          </div>
+          <input
+            type="range"
+            min={1}
+            max={15}
+            step={1}
+            value={desiredFps}
+            onChange={(e) => setDesiredFps(Number(e.target.value))}
+            disabled={isAnalyzing}
+            className="w-full accent-emerald-400"
+          />
+          <p className="mt-2 text-xs text-slate-400">Baissez pour mieux voir les IDs.</p>
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl bg-white/5 p-4">

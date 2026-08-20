@@ -35,9 +35,15 @@ export class AnalysisService {
   private readonly maxCaptureHeight = 360
   private frameSendTime = 0
   private frameDelta = 0.5  // time to advance the video each frame based on backend latency
+  private desiredFps = 15
 
-  constructor(useRealAPI: boolean = true) {
+  constructor(useRealAPI: boolean = true, desiredFps: number = 15) {
     this.useRealAPI = useRealAPI
+    this.desiredFps = Math.max(1, Math.min(30, desiredFps))
+  }
+
+  setFps(fps: number) {
+    this.desiredFps = Math.max(1, Math.min(30, fps))
   }
 
   startAnalysis(
@@ -308,7 +314,7 @@ export class AnalysisService {
       if (this.isAnalyzing && loopId === this.activeLoopId) {
         this.animationFrame = window.requestAnimationFrame(() => this.processFrameWithAPI())
       }
-    }, 1000 / 15)
+    }, 1000 / this.desiredFps)
   }
 
   private convertAPIDetections(apiDetections: any[], frameShape?: number[]): Detection[] {
