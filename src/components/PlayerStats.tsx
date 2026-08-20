@@ -1,5 +1,5 @@
 import { PlayerStats } from '../types/playerStats'
-import { Activity, Users } from 'lucide-react'
+import { Activity, Users, X } from 'lucide-react'
 import { useState } from 'react'
 import { playerStatsService } from '../services/playerStatsService'
 
@@ -72,6 +72,13 @@ export function PlayerStatsView({ stats, selectedPlayerId, onSelectPlayer, homeP
           </div>
         </div>
       </div>
+
+      {selectedPlayerId && (
+        <PlayerDetail
+          player={stats.find(p => p.id === selectedPlayerId)}
+          onClose={() => onSelectPlayer(null)}
+        />
+      )}
 
     </div>
   )
@@ -181,6 +188,73 @@ function PlayerMergeForm({ onMerge }: PlayerMergeFormProps) {
       >
         Regrouper et voir les statistiques
       </button>
+    </div>
+  )
+}
+
+interface PlayerDetailProps {
+  player?: PlayerStats
+  onClose: () => void
+}
+
+function PlayerDetail({ player, onClose }: PlayerDetailProps) {
+  if (!player) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-4 text-white">
+        Joueur introuvable.
+      </div>
+    )
+  }
+
+  const isHome = player.team === 'home'
+  const accent = isHome ? 'text-emerald-400' : 'text-blue-400'
+  const border = isHome ? 'border-emerald-500/30' : 'border-blue-500/30'
+  const title = player.name || `Joueur #${player.jerseyNumber || player.id}`
+
+  return (
+    <div className={`rounded-2xl border ${border} bg-slate-900/50 p-5 space-y-4`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+            isHome ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'
+          }`}>
+            {player.jerseyNumber || player.id}
+          </div>
+          <div>
+            <h4 className="text-lg font-bold text-white">{title}</h4>
+            <p className="text-xs text-slate-400 capitalize">{isHome ? 'Équipe domicile' : 'Équipe extérieur'}</p>
+          </div>
+        </div>
+        <button onClick={onClose} className="text-slate-400 hover:text-white transition">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 text-center">
+        <StatBox label="Distance" value={`${player.totalDistance.toFixed(0)}m`} accent={accent} />
+        <StatBox label="Touches" value={`${player.touches}`} accent={accent} />
+        <StatBox label="Sprints" value={`${player.sprintCount}`} accent={accent} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 text-center">
+        <StatBox label="Vitesse moy." value={`${(player.averageSpeed * 3.6).toFixed(1)} km/h`} accent={accent} />
+        <StatBox label="Vitesse max" value={`${(player.maxSpeed * 3.6).toFixed(1)} km/h`} accent={accent} />
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 text-center">
+        <StatBox label="Défense" value={`${player.timeInDefensiveThird.toFixed(0)}s`} accent={accent} />
+        <StatBox label="Milieu" value={`${player.timeInMidfield.toFixed(0)}s`} accent={accent} />
+        <StatBox label="Attaque" value={`${player.timeInAttackingThird.toFixed(0)}s`} accent={accent} />
+      </div>
+    </div>
+  )
+}
+
+function StatBox({ label, value, accent }: { label: string; value: string; accent: string }) {
+  return (
+    <div className="rounded-xl bg-white/5 p-3">
+      <p className="text-[10px] uppercase tracking-wider text-slate-400">{label}</p>
+      <p className={`mt-1 text-lg font-black ${accent}`}>{value}</p>
     </div>
   )
 }
