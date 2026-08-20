@@ -26,7 +26,7 @@ export class AnalysisService {
   private onFrameCallback: ((frame: AnalysisFrame) => void) | null = null
   private videoElement: HTMLVideoElement | null = null
   private frameCount = 0
-  private useRealAPI = false
+  private useRealAPI = true
   private wsAnalyzer: WebSocketAnalyzer | null = null
   private canvas: HTMLCanvasElement | null = null
   private activeLoopId = 0
@@ -36,7 +36,7 @@ export class AnalysisService {
   private frameSendTime = 0
   private frameDelta = 0.5  // time to advance the video each frame based on backend latency
 
-  constructor(useRealAPI: boolean = false) {
+  constructor(useRealAPI: boolean = true) {
     this.useRealAPI = useRealAPI
   }
 
@@ -130,10 +130,7 @@ export class AnalysisService {
       },
       (error) => {
         console.error('WebSocket error:', error)
-        // Fallback to simulation without leaving the API loop running
-        this.useRealAPI = false
-        this.activeLoopId++
-        this.processFrame()
+        this.stopAnalysis()
       },
       () => {
         // Start or resume the API loop on every successful connection

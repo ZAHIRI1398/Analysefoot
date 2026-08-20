@@ -33,7 +33,6 @@ import { motion } from 'framer-motion'
 import './App.css'
 import { VideoUploader } from './components/VideoUploader'
 import { VideoOverlay } from './components/VideoOverlay'
-import { RadarView } from './components/RadarView'
 import { AnalysisControls } from './components/AnalysisControls'
 import { analysisService, AnalysisFrame, Detection } from './services/analysisService'
 
@@ -207,12 +206,10 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null)
   const [currentDetections, setCurrentDetections] = useState<Detection[]>([])
-  const [radarPositions, setRadarPositions] = useState<Array<{ x: number; y: number; team: 'home' | 'away'; id: number }>>([])
   const [analysisFrames, setAnalysisFrames] = useState<AnalysisFrame[]>([])
   const [frameCount, setFrameCount] = useState(0)
   const [showAnalysisMode, setShowAnalysisMode] = useState(false)
   const [videoSrc, setVideoSrc] = useState<string | null>(null)
-  const [useRealAPI, setUseRealAPI] = useState(true) // Utiliser l'API réelle par défaut pour obtenir de vraies détections
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
   const [isRecording, setIsRecording] = useState(false)
   const analysisServiceRef = useRef<AnalysisService | null>(null)
@@ -268,7 +265,7 @@ function App() {
     setIsAnalyzing(false)
   }
 
-  const startAnalysis = async (realAPI: boolean) => {
+  const startAnalysis = async () => {
     if (!videoElement) return
 
     // Wait for video metadata so AnalysisService and Overlay get correct dimensions
@@ -287,29 +284,14 @@ function App() {
       videoElement.currentTime = 0
     }
     videoElement.playsInline = true
-    // For real API the analysis service controls frame stepping itself.
-    if (!realAPI) {
-      try {
-        await videoElement.play()
-      } catch (err) {
-        console.warn('[App] play() failed, trying muted', err)
-        videoElement.muted = true
-        try {
-          await videoElement.play()
-        } catch (err2) {
-          console.error('[App] play() failed even muted', err2)
-        }
-      }
-    }
 
-    const service = new AnalysisService(realAPI)
+    const service = new AnalysisService()
     analysisServiceRef.current = service
     videoElement.onended = stopAnalysis
 
     service.startAnalysis(videoElement, (frame) => {
-      console.log('[App] frame callback', frame.detections.length, frame.radarPositions.length)
+      console.log('[App] frame callback', frame.detections.length)
       setCurrentDetections(frame.detections)
-      setRadarPositions(frame.radarPositions)
       setAnalysisFrames(prev => {
         const next = prev.length >= 1000 ? prev.slice(-999) : prev
         return next.concat(frame)
@@ -325,15 +307,7 @@ function App() {
     if (isAnalyzing) {
       stopAnalysis()
     } else {
-      await startAnalysis(useRealAPI)
-    }
-  }
-
-  const handleSetUseRealAPI = async (value: boolean) => {
-    setUseRealAPI(value)
-    if (isAnalyzing) {
-      stopAnalysis()
-      await startAnalysis(value)
+      await startAnalysis()
     }
   }
 
@@ -506,14 +480,11 @@ function App() {
               )}
             </div>
             <div className="space-y-4">
-              <RadarView positions={radarPositions} />
-              <AnalysisControls 
+              <AnalysisControls
                 isAnalyzing={isAnalyzing}
                 isRecording={isRecording}
                 frameCount={frameCount}
                 frames={analysisFrames}
-                useRealAPI={useRealAPI}
-                setUseRealAPI={handleSetUseRealAPI}
                 onExport={handleExportAnalysis}
                 onToggleRecording={videoElement ? handleToggleRecording : undefined}
               />

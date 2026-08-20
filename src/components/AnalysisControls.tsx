@@ -1,4 +1,4 @@
-import { Download, BarChart3, Cpu, Video, Square } from 'lucide-react'
+import { Download, BarChart3, Video, Square } from 'lucide-react'
 import { AnalysisFrame } from '../services/analysisService'
 
 interface AnalysisControlsProps {
@@ -6,13 +6,11 @@ interface AnalysisControlsProps {
   isRecording?: boolean
   frameCount: number
   frames: AnalysisFrame[]
-  useRealAPI: boolean
-  setUseRealAPI: (value: boolean) => void
   onExport: () => void
   onToggleRecording?: () => void
 }
 
-export function AnalysisControls({ isAnalyzing, isRecording, frameCount, frames, useRealAPI, setUseRealAPI, onExport, onToggleRecording }: AnalysisControlsProps) {
+export function AnalysisControls({ isAnalyzing, isRecording, frameCount, frames, onExport, onToggleRecording }: AnalysisControlsProps) {
   return (
     <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-6 backdrop-blur">
       <div className="mb-4 flex items-center gap-3">
@@ -23,19 +21,6 @@ export function AnalysisControls({ isAnalyzing, isRecording, frameCount, frames,
           <p className="font-mono text-xs uppercase tracking-widest text-emerald-200">Statistiques</p>
           <h3 className="text-lg font-black">Analyse en cours</h3>
         </div>
-      </div>
-
-      <div className="mb-4 flex items-center gap-3">
-        <Cpu className="size-4 text-emerald-300" />
-        <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-200">
-          <input
-            type="checkbox"
-            checked={useRealAPI}
-            onChange={(e) => setUseRealAPI(e.target.checked)}
-            className="size-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-500"
-          />
-          Utiliser l'API réelle (backend)
-        </label>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
