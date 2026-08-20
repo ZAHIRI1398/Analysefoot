@@ -209,6 +209,53 @@ export class PlayerStatsService {
     }
   }
 
+  mergePlayers(targetId: number, sourceIds: number[]) {
+    const target = this.playerStats.get(targetId)
+    if (!target) return
+
+    for (const sourceId of sourceIds) {
+      const source = this.playerStats.get(sourceId)
+      if (!source || source.team !== target.team) continue
+
+      const totalFrames = target.frameCount + source.frameCount
+      if (totalFrames > 0) {
+        target.averageSpeed =
+          (target.averageSpeed * target.frameCount + source.averageSpeed * source.frameCount) / totalFrames
+        target.averagePosition = {
+          x: (target.averagePosition.x * target.frameCount + source.averagePosition.x * source.frameCount) / totalFrames,
+          y: (target.averagePosition.y * target.frameCount + source.averagePosition.y * source.frameCount) / totalFrames,
+        }
+      }
+
+      target.totalDistance += source.totalDistance
+      target.maxSpeed = Math.max(target.maxSpeed, source.maxSpeed)
+      target.sprintCount += source.sprintCount
+      target.touches += source.touches
+      target.timeInPossession += source.timeInPossession
+      target.timeInDefensiveThird += source.timeInDefensiveThird
+      target.timeInMidfield += source.timeInMidfield
+      target.timeInAttackingThird += source.timeInAttackingThird
+      target.frameCount += source.frameCount
+      target.positionHeatmap.push(...source.positionHeatmap)
+
+      const targetHistory = (target as any).positionHistory as Array<{ x: number; y: number; timestamp: number }> | undefined
+      const sourceHistory = (source as any).positionHistory as Array<{ x: number; y: number; timestamp: number }> | undefined
+      if (targetHistory && sourceHistory) {
+        targetHistory.push(...sourceHistory)
+      }
+
+      // Keep the most recent known position for speed/distance calculations
+      const targetLast = this.lastPositions.get(targetId)
+      const sourceLast = this.lastPositions.get(sourceId)
+      if (sourceLast && (!targetLast || sourceLast.timestamp > targetLast.timestamp)) {
+        this.lastPositions.set(targetId, { ...sourceLast })
+      }
+
+      this.playerStats.delete(sourceId)
+      this.lastPositions.delete(sourceId)
+    }
+  }
+
   exportStats() {
     return {
       players: Array.from(this.playerStats.values()),

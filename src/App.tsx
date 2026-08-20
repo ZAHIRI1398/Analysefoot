@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { AnalysisService } from './services/analysisService'
 import { playerStatsService } from './services/playerStatsService'
 import { PlayerStatsView } from './components/PlayerStats'
@@ -211,11 +211,21 @@ function App() {
   const [showAnalysisMode, setShowAnalysisMode] = useState(false)
   const [videoSrc, setVideoSrc] = useState<string | null>(null)
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
+  const [statsVersion, setStatsVersion] = useState(0)
   const [isRecording, setIsRecording] = useState(false)
   const analysisServiceRef = useRef<AnalysisService | null>(null)
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const recordedChunksRef = useRef<Blob[]>([])
+
+  useEffect(() => {
+    ;(window as any).mergePlayerStats = (targetId: number, ...sourceIds: number[]) => {
+      playerStatsService.mergePlayers(targetId, sourceIds)
+      setStatsVersion(v => v + 1)
+      console.log('[mergePlayerStats] fused', sourceIds, 'into', targetId)
+    }
+    ;(window as any).listPlayers = () => playerStatsService.getAllPlayerStats().map(p => ({ id: p.id, team: p.team, distance: p.totalDistance.toFixed(0), touches: p.touches }))
+  }, [])
 
   const stage = stages.find((item) => item.id === activeStage) ?? stages[0]
   const Icon = stage.icon
@@ -488,7 +498,8 @@ function App() {
                 onExport={handleExportAnalysis}
                 onToggleRecording={videoElement ? handleToggleRecording : undefined}
               />
-              <PlayerStatsView 
+              <PlayerStatsView
+                key={statsVersion}
                 stats={playerStatsService.getAllPlayerStats()}
                 selectedPlayerId={selectedPlayerId}
                 onSelectPlayer={setSelectedPlayerId}
