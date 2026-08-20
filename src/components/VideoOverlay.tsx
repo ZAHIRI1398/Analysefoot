@@ -17,16 +17,12 @@ export const VideoOverlay = forwardRef<HTMLCanvasElement, VideoOverlayProps>(
   ) {
     const canvasRef = useRef<HTMLCanvasElement>(null)
 
-    const getColor = (detection: Detection): [string, string] => {
-      if (detection.teamColor) {
-        const [r, g, b] = detection.teamColor
-        return [`rgb(${r}, ${g}, ${b})`, `rgba(${r}, ${g}, ${b}, 0.25)`]
-      }
-      if (detection.class === 'referee') return ['rgb(192, 132, 252)', 'rgba(192, 132, 252, 0.25)']
-      if (detection.class === 'ball') return ['rgb(250, 204, 21)', 'rgba(250, 204, 21, 0.4)']
-      if (detection.team === 'home') return ['rgb(34, 211, 238)', 'rgba(34, 211, 238, 0.25)']
-      if (detection.team === 'away') return ['rgb(163, 230, 53)', 'rgba(163, 230, 53, 0.25)']
-      return ['rgb(250, 204, 21)', 'rgba(250, 204, 21, 0.25)']
+    const getColor = (detection: Detection): string => {
+      if (detection.team === 'home') return 'rgb(34, 211, 238)'
+      if (detection.team === 'away') return 'rgb(163, 230, 53)'
+      if (detection.class === 'referee') return 'rgb(192, 132, 252)'
+      if (detection.class === 'ball') return 'rgb(250, 204, 21)'
+      return 'rgb(250, 204, 21)'
     }
 
     const isColorDark = (color: string): boolean => {
@@ -39,13 +35,14 @@ export const VideoOverlay = forwardRef<HTMLCanvasElement, VideoOverlayProps>(
 
     const draw = () => {
       const canvas = canvasRef.current
-      if (!canvas) return
+      if (!canvas || !videoElement) return
 
       const safeVideoWidth = Math.max(videoWidth, 1)
       const safeVideoHeight = Math.max(videoHeight, 1)
 
-      canvas.width = canvas.clientWidth || safeVideoWidth
-      canvas.height = canvas.clientHeight || safeVideoHeight
+      // Keep the canvas pixel size equal to the video so the overlay is 1:1 with bbox coordinates
+      canvas.width = safeVideoWidth
+      canvas.height = safeVideoHeight
 
       const ctx = canvas.getContext('2d')
       if (!ctx) return
@@ -53,87 +50,37 @@ export const VideoOverlay = forwardRef<HTMLCanvasElement, VideoOverlayProps>(
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
       // Draw the current video frame first so the canvas contains the full composed image
-      if (videoElement && videoElement.readyState >= 2) {
+      if (videoElement.readyState >= 2) {
         ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height)
       }
-
-      const scaleX = canvas.width / safeVideoWidth
-      const scaleY = canvas.height / safeVideoHeight
 
       detections.forEach((detection) => {
         const { x, y, width, height } = detection.bbox
         const isSelected = detection.class === 'player' && detection.trackId === selectedPlayerId
 
-        const drawX = x * scaleX
-        const drawY = y * scaleY
-        const drawWidth = width * scaleX
-        const drawHeight = height * scaleY
-        const cx = drawX + drawWidth / 2
-        const footY = drawY + drawHeight
+        const color = isSelected ? 'rgb(255, 255, 255)' : getColor(detection)
 
-        let [color] = getColor(detection)
-        if (isSelected) color = 'rgb(255, 255, 255)'
+        // Simple bounding box
+        ctx.strokeStyle = color
+        ctx.lineWidth = isSelected ? 4 : 2
+        ctx.strokeRect(x, y, width, height)
 
-        if (detection.class === 'ball') {
-          // Ball marker: triangle above the ball (football_analysis-master style)
-          ctx.beginPath()
-          ctx.moveTo(cx, drawY)
-          ctx.lineTo(cx - 8, drawY - 18)
-          ctx.lineTo(cx + 8, drawY - 18)
-          ctx.closePath()
-          ctx.fillStyle = color
-          ctx.fill()
-          ctx.lineWidth = 1
-          ctx.strokeStyle = 'rgb(15, 23, 42)'
-          ctx.stroke()
-        } else {
-          // Player / referee marker: ellipse under the feet
-          ctx.beginPath()
-          const rx = Math.max(8, drawWidth / 2 + 4)
-          const ry = Math.max(6, drawWidth * 0.12)
-          ctx.ellipse(cx, footY, rx, ry, 0, -Math.PI / 6, (4 * Math.PI) / 3)
-          ctx.strokeStyle = color
-          ctx.lineWidth = isSelected ? 4 : 2
-          ctx.stroke()
+        // Simple label at the top-left of the box
+        const label = detection.class === 'player' ? `#${detection.trackId ?? '?'}` : detection.class
+        ctx.font = 'bold 14px Arial'
+        const paddingX = 6
+        const labelHeight = 20
+        const labelWidth = ctx.measureText(label).width + paddingX * 2
+        const labelX = x
+        const labelY = Math.max(y - labelHeight, labelHeight)
 
-          // Ball-possession indicator (small triangle above the player)
-          if (detection.hasBall) {
-            ctx.beginPath()
-            ctx.moveTo(cx, drawY - 22)
-            ctx.lineTo(cx - 6, drawY - 36)
-            ctx.lineTo(cx + 6, drawY - 36)
-            ctx.closePath()
-            ctx.fillStyle = 'rgb(250, 204, 21)'
-            ctx.fill()
-            ctx.lineWidth = 1
-            ctx.strokeStyle = 'rgb(15, 23, 42)'
-            ctx.stroke()
-          }
+        ctx.fillStyle = color
+        ctx.fillRect(labelX, labelY, labelWidth, labelHeight)
 
-          // ID badge below the ellipse
-          const label = detection.class === 'player' ? `#${detection.trackId}` : detection.class
-          ctx.font = 'bold 12px Arial'
-          const textMetrics = ctx.measureText(label)
-          const paddingX = 5
-          const labelHeight = 16
-          const labelWidth = textMetrics.width + paddingX * 2
-          const labelX = cx - labelWidth / 2
-          const labelY = footY + ry + 4
-
-          // Clamp badge inside canvas
-          const safeLabelX = Math.max(0, Math.min(labelX, canvas.width - labelWidth))
-          const safeLabelY = Math.max(0, Math.min(labelY, canvas.height - labelHeight))
-
-          ctx.fillStyle = color
-          ctx.fillRect(safeLabelX, safeLabelY, labelWidth, labelHeight)
-
-          ctx.fillStyle = isColorDark(color) ? 'white' : 'rgb(15, 23, 42)'
-          ctx.textAlign = 'center'
-          ctx.textBaseline = 'middle'
-          ctx.fillText(label, safeLabelX + labelWidth / 2, safeLabelY + labelHeight / 2)
-          ctx.textAlign = 'start'
-          ctx.textBaseline = 'alphabetic'
-        }
+        ctx.fillStyle = isColorDark(color) ? 'white' : 'black'
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(label, labelX + paddingX, labelY + labelHeight / 2)
       })
     }
 

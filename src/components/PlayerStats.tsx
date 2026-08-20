@@ -1,5 +1,5 @@
 import { PlayerStats } from '../types/playerStats'
-import { Activity, Zap, Footprints, MapPin, Timer } from 'lucide-react'
+import { Activity } from 'lucide-react'
 
 interface PlayerStatsViewProps {
   stats: PlayerStats[]
@@ -27,20 +27,6 @@ export function PlayerStatsView({ stats, selectedPlayerId, onSelectPlayer, homeP
               Désélectionner
             </button>
           )}
-        </div>
-        <div className="flex h-4 w-full overflow-hidden rounded-full bg-slate-800">
-          <div
-            className="bg-emerald-500 text-[10px] font-bold text-slate-950 flex items-center justify-center"
-            style={{ width: `${homePossession}%` }}
-          >
-            {homePossession > 10 && `${homePossession.toFixed(0)}%`}
-          </div>
-          <div
-            className="bg-blue-500 text-[10px] font-bold text-slate-950 flex items-center justify-center"
-            style={{ width: `${awayPossession}%` }}
-          >
-            {awayPossession > 10 && `${awayPossession.toFixed(0)}%`}
-          </div>
         </div>
       </div>
 
@@ -76,10 +62,6 @@ export function PlayerStatsView({ stats, selectedPlayerId, onSelectPlayer, homeP
         </div>
       </div>
 
-      {/* Selected Player Detail */}
-      {selectedPlayerId && (
-        <PlayerDetailView stats={stats.find(p => p.id === selectedPlayerId)} />
-      )}
     </div>
   )
 }
@@ -111,14 +93,10 @@ function PlayerCard({ stats, isSelected, onClick }: PlayerCardProps) {
         <Activity className={`w-4 h-4 ${stats.team === 'home' ? 'text-emerald-400' : 'text-blue-400'}`} />
       </div>
       
-      <div className="grid grid-cols-3 gap-2 text-xs">
+      <div className="grid grid-cols-2 gap-2 text-xs">
         <div>
           <p className="text-slate-400">Distance</p>
           <p className="text-white font-semibold">{stats.totalDistance.toFixed(0)}m</p>
-        </div>
-        <div>
-          <p className="text-slate-400">Vitesse moy.</p>
-          <p className="text-white font-semibold">{stats.averageSpeed.toFixed(1)} km/h</p>
         </div>
         <div>
           <p className="text-slate-400">Touches</p>
@@ -129,114 +107,3 @@ function PlayerCard({ stats, isSelected, onClick }: PlayerCardProps) {
   )
 }
 
-interface PlayerDetailViewProps {
-  stats?: PlayerStats
-}
-
-function PlayerDetailView({ stats }: PlayerDetailViewProps) {
-  if (!stats) return null
-
-  const teamColor = stats.team === 'home' ? 'text-emerald-400' : 'text-blue-400'
-
-  return (
-    <div className="mt-6 p-6 rounded-2xl border border-white/10 bg-white/[0.05]">
-      <div className="flex items-center gap-4 mb-6">
-        <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ${
-          stats.team === 'home' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'
-        }`}>
-          {stats.jerseyNumber || stats.id}
-        </div>
-        <div>
-          <h3 className="text-xl font-bold text-white">Joueur #{stats.jerseyNumber || stats.id}</h3>
-          <p className={`text-sm ${teamColor}`}>{stats.team === 'home' ? 'Équipe Domicile' : 'Équipe Extérieur'}</p>
-        </div>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          icon={Footprints}
-          label="Distance Totale"
-          value={`${stats.totalDistance.toFixed(0)} m`}
-          color="emerald"
-        />
-        <StatCard
-          icon={Zap}
-          label="Vitesse Maximale"
-          value={`${stats.maxSpeed.toFixed(1)} km/h`}
-          color="yellow"
-        />
-        <StatCard
-          icon={Activity}
-          label="Vitesse Moyenne"
-          value={`${stats.averageSpeed.toFixed(1)} km/h`}
-          color="blue"
-        />
-        <StatCard
-          icon={MapPin}
-          label="Sprints"
-          value={stats.sprintCount.toString()}
-          color="red"
-        />
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-3 mt-6">
-        <div className="p-4 rounded-xl border border-white/10 bg-white/[0.02]">
-          <div className="flex items-center gap-2 mb-3">
-            <Timer className="w-4 h-4 text-slate-400" />
-            <p className="text-sm text-slate-400">Temps par Zone</p>
-          </div>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-400">Défensif</span>
-              <span className="text-white font-medium">{stats.timeInDefensiveThird.toFixed(0)}s</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Milieu</span>
-              <span className="text-white font-medium">{stats.timeInMidfield.toFixed(0)}s</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Attaque</span>
-              <span className="text-white font-medium">{stats.timeInAttackingThird.toFixed(0)}s</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl border border-white/10 bg-white/[0.02]">
-          <p className="text-sm text-slate-400 mb-3">Touches de balle</p>
-          <p className="text-2xl font-bold text-white">{stats.touches}</p>
-        </div>
-
-        <div className="p-4 rounded-xl border border-white/10 bg-white/[0.02]">
-          <p className="text-sm text-slate-400 mb-3">Position Moyenne</p>
-          <p className="text-2xl font-bold text-white">
-            ({stats.averagePosition.x.toFixed(0)}%, {stats.averagePosition.y.toFixed(0)}%)
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-interface StatCardProps {
-  icon: any
-  label: string
-  value: string
-  color: 'emerald' | 'yellow' | 'blue' | 'red'
-}
-
-function StatCard({ icon: Icon, label, value, color }: StatCardProps) {
-  const colorClasses = {
-    emerald: 'text-emerald-400',
-    yellow: 'text-yellow-400',
-    blue: 'text-blue-400',
-    red: 'text-red-400',
-  }
-
-  return (
-    <div className="p-4 rounded-xl border border-white/10 bg-white/[0.02]">
-      <Icon className={`w-6 h-6 ${colorClasses[color]} mb-2`} />
-      <p className="text-sm text-slate-400 mb-1">{label}</p>
-      <p className="text-xl font-bold text-white">{value}</p>
-    </div>
-  )
-}
